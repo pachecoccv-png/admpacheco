@@ -1,6 +1,7 @@
+
 #!/bin/bash
 # ======================================================
-# PANEL ADMPACHECO - GESTOR VPS COMPLETO
+# PANEL ADMPACHECO - GESTOR VPS MODULAR PROFESIONAL
 # ======================================================
 
 RED='\033[0;31m'
@@ -10,32 +11,35 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+REPO="https://raw.githubusercontent.com/pachecoccv-png/admpacheco/main"
+
 if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${RED}[!] Debes ejecutar este script como root.${NC}"
+    echo -e "${RED}[!] Debes ejecutar este script como root (sudo -i).${NC}"
     exit 1
 fi
-
-abrir_puerto() {
-    local port=$1
-    local proto=${2:-tcp}
-    ufw allow $port/$proto >/dev/null 2>&1 || true
-    iptables -I INPUT -p $proto --dport $port -j ACCEPT >/dev/null 2>&1 || true
-}
 
 instalar_dependencias() {
     if [ -f /etc/vps-pacheco/.deps_ok ]; then
         return 0
     fi
-    echo -e "${YELLOW}[+] Preparando sistema...${NC}"
+
+    echo -e "${YELLOW}[+] Preparando entorno del sistema y dependencias esenciales...${NC}"
+
+    if ! loginctl show-user root 2>/dev/null | grep -q '^Linger=yes'; then
+        loginctl enable-linger root 2>/dev/null || true
+    fi
+
     mkdir -p /run/user/0
     chmod 700 /run/user/0
     chown root:root /run/user/0
     export XDG_RUNTIME_DIR=/run/user/0
+
     apt-get update -y >/dev/null 2>&1
-    apt-get install -y gnupg wget curl software-properties-common lsb-release ufw iptables libstdc++6 python3 >/dev/null 2>&1
+    apt-get install -y gnupg wget curl software-properties-common lsb-release ufw iptables libstdc++6 libcurl4-openssl-dev python3 >/dev/null 2>&1
+
     mkdir -p /etc/vps-pacheco
     touch /etc/vps-pacheco/.deps_ok
-    echo -e "${GREEN}[✓] Sistema preparado.${NC}"
+    echo -e "${GREEN}[✓] Sistema preparado correctamente.${NC}"
     sleep 1
 }
 
@@ -53,8 +57,11 @@ check_status() {
 }
 
 contar_usuarios() {
-    activos=0; expirados=0; total=0
+    activos=0
+    expirados=0
+    total=0
     now_sec=$(date +%s)
+
     for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
         total=$((total+1))
         exp=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
@@ -67,121 +74,34 @@ contar_usuarios() {
     done
 }
 
-admin_cuentas() {
-    while true; do
-        clear
-        echo -e "${RED}------------------------------------------------------------${NC}"
-        echo -e "${YELLOW}             ADMINISTRAR CUENTAS (SSH/DROPBEAR)             ${NC}"
-        echo -e "${RED}------------------------------------------------------------${NC}"
-        echo -e " ${CYAN}[1]>${NC} Crear Usuario SSH"
-        echo -e " ${CYAN}[2]>${NC} Eliminar Usuario"
-        echo -e " ${CYAN}[3]>${NC} Renovar Usuario"
-        echo -e " ${CYAN}[4]>${NC} Listar Usuarios"
-        echo -e " ${CYAN}[5]>${NC} Limpiar Expirados"
-        echo -e "${RED}------------------------------------------------------------${NC}"
-        echo -e " ${RED}[0] VOLVER${NC}"
-        read -r -p " Ingresa una Opcion: " op_acc
-        case $op_acc in
-            1)
-                read -r -p "Nombre del usuario: " usr
-                read -r -p "Contraseña: " pass
-                read -r -p "Días de duración: " dias
-                if [[ -z "$usr" || -z "$pass" || -z "$dias" ]]; then
-                    echo -e "${RED}[!] Completa todos los datos.${NC}"
-                else
-                    exp=$(date -d "+$dias days" +%Y-%m-%d)
-                    useradd -M -s /bin/false "$usr" 2>/dev/null || useradd -M -s /usr/sbin/nologin "$usr" 2>/dev/null
-                    echo "$usr:$pass" | chpasswd
-                    chage -E "$exp" "$usr"
-                    echo -e "${GREEN}[✓] Usuario '$usr' creado hasta $exp${NC}"
-                fi
-                read -r -p "Enter para continuar..." aux ;;
-            2)
-                read -r -p "Usuario a eliminar: " usr
-                userdel -f "$usr" 2>/dev/null
-                echo -e "${GREEN}[✓] Usuario '$usr' eliminado${NC}"
-                read -r -p "Enter para continuar..." aux ;;
-            3)
-                read -r -p "Usuario a renovar: " usr
-                read -r -p "Días adicionales: " dias
-                exp=$(date -d "+$dias days" +%Y-%m-%d)
-                chage -E "$exp" "$usr"
-                echo -e "${GREEN}[✓] Renovado hasta $exp${NC}"
-                read -r -p "Enter para continuar..." aux ;;
-            4)
-                clear
-                printf "%-16s %-18s\n" "USUARIO" "EXPIRACIÓN"
-                echo "----------------------------------------------------"
-                for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
-                    ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
-                    printf "%-16s %-18s\n" "$u" "$ex"
-                done
-                read -r -p "Enter para continuar..." aux ;;
-            5)
-                for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
-                    ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
-                    exp_sec=$(date -d "$ex" +%s 2>/dev/null || echo "0")
-                    if [ "$exp_sec" -gt 0 ] && [ "$(date +%s)" -gt "$exp_sec" ]; then
-                        userdel -f "$u" 2>/dev/null
-                    fi
-                done
-                echo -e "${GREEN}[✓] Expirados eliminados${NC}"
-                read -r -p "Enter para continuar..." aux ;;
-            0) break ;;
-            *) sleep 1 ;;
-        esac
-    done
-}
-
 menu_protocolos() {
     while true; do
         clear
         echo -e "${RED}------------------------------------------------------------${NC}"
         echo -e "${YELLOW}                ADMINISTRADOR DE PROTOCOLOS                 ${NC}"
         echo -e "${RED}============================================================${NC}"
-        echo -e " ${CYAN}[1]>${NC} SSH (22)        $(check_status 22 ssh)    ${CYAN}[2]>${NC} Dropbear (90)    $(check_status 90 dropbear)"
-        echo -e " ${CYAN}[3]>${NC} Stunnel (443)   $(check_status 443 stunnel) ${CYAN}[4]>${NC} Squid (3128)     $(check_status 3128 squid)"
+        echo -e " ${CYAN}[1]>${NC} Dropbear (90)     $(check_status 90 dropbear)"
+        echo -e " ${CYAN}[2]>${NC} Stunnel SSL (443) $(check_status 443 stunnel)"
+        echo -e " ${CYAN}[3]>${NC} Squid Proxy (3128)$(check_status 3128 squid)"
+        echo -e " ${CYAN}[4]>${NC} WS-EPro (80)      $(check_status 80 ws.py)"
+        echo -e " ${CYAN}[5]>${NC} UDP-Custom (36712)$(check_status 36712 udp-custom)"
+        echo -e " ${CYAN}[6]>${NC} BadVPN UDPGW(7300)$(check_status 7300 badvpn)"
         echo -e "${RED}------------------------------------------------------------${NC}"
         echo -e " ${RED}[0] VOLVER${NC}"
+        echo -e "${RED}------------------------------------------------------------${NC}"
         read -r -p " Ingresa una Opcion: " op_prot
+
         case $op_prot in
-            1)
-                abrir_puerto 22 tcp
-                systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
-                echo -e "${GREEN}[✓] SSH activo${NC}"
-                read -r -p "Enter para continuar..." aux ;;
-            2)
-                abrir_puerto 90 tcp
-                apt-get install dropbear -y >/dev/null 2>&1
-                sed -i 's/NO_START=1/NO_START=0/g' /etc/default/dropbear 2>/dev/null
-                sed -i 's/DROPBEAR_PORT=22/DROPBEAR_PORT=90/g' /etc/default/dropbear 2>/dev/null
-                systemctl restart dropbear 2>/dev/null
-                echo -e "${GREEN}[✓] Dropbear en puerto 90${NC}"
-                read -r -p "Enter para continuar..." aux ;;
-            3)
-                abrir_puerto 443 tcp
-                apt-get install stunnel4 -y >/dev/null 2>&1
-                systemctl restart stunnel4 2>/dev/null
-                echo -e "${GREEN}[✓] Stunnel activo${NC}"
-                read -r -p "Enter para continuar..." aux ;;
-            4)
-                abrir_puerto 3128 tcp
-                apt-get install squid -y >/dev/null 2>&1
-                systemctl restart squid 2>/dev/null
-                echo -e "${GREEN}[✓] Squid activo${NC}"
-                read -r -p "Enter para continuar..." aux ;;
+            1) bash <(curl -sSL "$REPO/dropbear.sh"); read -r -p "Enter para continuar..." aux ;;
+            2) bash <(curl -sSL "$REPO/stunnel.sh"); read -r -p "Enter para continuar..." aux ;;
+            3) bash <(curl -sSL "$REPO/squid.sh"); read -r -p "Enter para continuar..." aux ;;
+            4) bash <(curl -sSL "$REPO/websocket.sh"); read -r -p "Enter para continuar..." aux ;;
+            5) bash <(curl -sSL "$REPO/udp_custom.sh"); read -r -p "Enter para continuar..." aux ;;
+            6) bash <(curl -sSL "$REPO/badvpn.sh"); read -r -p "Enter para continuar..." aux ;;
             0) break ;;
-            *) echo -e "${RED}Opción inválida${NC}"; sleep 1 ;;
+            *) echo -e "${RED}Opción inválida.${NC}"; sleep 1 ;;
         esac
     done
-}
-
-desinstalar_panel() {
-    echo -e "${YELLOW}[!] Desinstalando panel...${NC}"
-    rm -rf /etc/vps-pacheco /usr/local/bin/menu /usr/local/bin/pacheco
-    rm -f /usr/local/bin/socks.py 2>/dev/null
-    echo -e "${GREEN}[✓] Panel desinstalado.${NC}"
-    exit 0
 }
 
 menu_principal() {
@@ -198,29 +118,33 @@ menu_principal() {
         echo -e "${RED}------------------------------------------------------------${NC}"
         echo -e " ${CYAN}[1]>${NC} ADMINISTRAR CUENTAS (SSH/DROPBEAR)"
         echo -e " ${CYAN}[2]>${NC} CONFIGURACION DE PROTOCOLOS"
-        echo -e " ${CYAN}[3]>${NC} HERRAMIENTAS EXTRAS"
-        echo -e " ${CYAN}[4]>${NC} CONFIGURACION DEL SCRIPT"
-        echo -e " ${CYAN}[5]>${NC} ${RED}[!] DESINSTALAR PANEL${NC}"
+        echo -e " ${CYAN}[3]>${NC} ${RED}[!] DESINSTALAR PANEL${NC}"
         echo -e "${RED}------------------------------------------------------------${NC}"
         echo -e " ${RED}[0] SALIR DEL VPS${NC}   ${BLUE}[8] SALIR DEL SCRIPT${NC}   ${CYAN}[9] REINICIAR VPS${NC}"
         echo -e "${RED}------------------------------------------------------------${NC}"
         read -r -p " Ingresa una Opcion: " opcion
+
         case $opcion in
-            1) admin_cuentas ;;
+            1) bash <(curl -sSL "$REPO/usuarios.sh") ;;
             2) menu_protocolos ;;
-            3) clear; echo -e "${YELLOW}[+] Herramientas Extras...${NC}"; echo -e "\nEspacio en disco:"; df -h; echo -e "\nMemoria:"; free -h; read -r -p "Enter para continuar..." aux ;;
-            4) clear; echo -e "${YELLOW}CONFIGURACIÓN DEL SCRIPT${NC}"; echo -e "Nombre: @AndresPacheco"; echo -e "Versión: 1.0"; read -r -p "Enter para continuar..." aux ;;
-            5) desinstalar_panel ;;
+            3)
+                systemctl stop udp-custom bdr-udpgw dropbear stunnel4 ws-epro squid 2>/dev/null
+                rm -rf /etc/vps-pacheco /root/udp /usr/local/bin/menu /usr/local/bin/pacheco /usr/local/bin/ws.py
+                echo -e "${GREEN}[✓] Panel desinstalado por completo.${NC}"
+                exit 0 ;;
             8) exit 0 ;;
             9) reboot ;;
             0) logout ;;
-            *) echo -e "${RED}Opción no válida${NC}"; sleep 1 ;;
+            *) echo -e "${RED}Opción no válida.${NC}"; sleep 1 ;;
         esac
     done
 }
 
 instalar_dependencias
+
 cp "$0" /usr/local/bin/menu 2>/dev/null || true
 chmod +x /usr/local/bin/menu
 ln -sf /usr/local/bin/menu /usr/local/bin/pacheco 2>/dev/null || true
+sed -i 's/\r$//' /usr/local/bin/menu 2>/dev/null || true
+
 menu_principal
