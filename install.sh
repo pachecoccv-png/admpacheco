@@ -21,7 +21,7 @@ SO=$(cat /etc/issue.net 2>/dev/null || uname -s)
 check_status() {
     local port=$1
     local name=$2
-    if ss -tuln 2>/dev/null | grep -q ":$port " \vert{}\vert{} pgrep -f "$name" >/dev/null; then
+    if ss -tuln 2>/dev/null | grep -q ":$port " || pgrep -f "$name" >/dev/null; then
         echo -e "${GREEN}[ON]${NC}"
     else
         echo -e "${RED}[OFF]${NC}"
@@ -52,10 +52,10 @@ menu_principal() {
     echo -e "${RED}------------------------------------------------------------${NC}"
     echo -e "${YELLOW}                     @AndresPacheco                         ${NC}"
     echo -e "${RED}============================================================${NC}"
-    echo -e " ${CYAN}S.O:${NC}    $SO${CYAN}Fecha:${NC}$(date +'%d-%m-%Y')"
-    echo -e " ${CYAN}IP:${NC}     $IP${CYAN}Hora:${NC}$(date +'%H:%M:%S')"
+    echo -e " ${CYAN}S.O:${NC}    $SO         ${CYAN}Fecha:${NC} $(date +'%d-%m-%Y')"
+    echo -e " ${CYAN}IP:${NC}     $IP                     ${CYAN}Hora:${NC}  $(date +'%H:%M:%S')"
     echo -e "${RED}============================================================${NC}"
-    echo -e " ${GREEN}ACTIVA:${NC}$activos   ${RED}EXPIRADA:${NC} $expirados${YELLOW}BLOQUEADA:${NC} 0${CYAN}TOTAL:${NC}$total"
+    echo -e " ${GREEN}ACTIVA:${NC} $activos   ${RED}EXPIRADA:${NC} $expirados   ${YELLOW}BLOQUEADA:${NC} 0   ${CYAN}TOTAL:${NC} $total"
     echo -e "${RED}------------------------------------------------------------${NC}"
     echo -e " ${CYAN}[1]>${NC} ADMINISTRAR CUENTAS (SSH/DROPBEAR)"
     echo -e "${RED}------------------------------------------------------------${NC}"
@@ -91,7 +91,7 @@ menu_principal() {
 admin_cuentas() {
     clear
     echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e "${YELLOW}             ADMINISTRAR CUENTAS (SSH/DROPBEAR)${NC}"
+    echo -e "${YELLOW}             ADMINISTRAR CUENTAS (SSH/DROPBEAR)             ${NC}"
     echo -e "${RED}------------------------------------------------------------${NC}"
     echo -e " ${CYAN}[1]>${NC} Crear Usuario SSH"
     echo -e " ${CYAN}[2]>${NC} Eliminar Usuario"
@@ -118,4 +118,101 @@ admin_cuentas() {
             read -p "Usuario a eliminar: " usr
             userdel -f "$usr" 2>/dev/null
             echo -e "${GREEN}[✓] Usuario '$usr' eliminado.${NC}"
-            read -p "Presiona
+            read -p "Presiona Enter..." aux; admin_cuentas ;;
+        3)
+            read -p "Usuario a renovar: " usr
+            read -p "Días adicionales: " dias
+            exp=$(date -d "+$dias days" +%Y-%m-%d)
+            chage -E "$exp" "$usr"
+            echo -e "${GREEN}[✓] Renovado hasta $exp.${NC}"
+            read -p "Presiona Enter..." aux; admin_cuentas ;;
+        4)
+            clear
+            printf "%-16s %-18s\n" "USUARIO" "EXPIRACIÓN"
+            echo "----------------------------------------------------"
+            for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
+                ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
+                printf "%-16s %-18s\n" "$u" "$ex"
+            done
+            read -p "Presiona Enter..." aux; admin_cuentas ;;
+        5)
+            for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
+                ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
+                exp_sec=$(date -d "$ex" +%s 2>/dev/null || echo "0")
+                if [ "$exp_sec" -gt 0 ] && [ "$(date +%s)" -gt "$exp_sec" ]; then
+                    userdel -f "$u" 2>/dev/null
+                fi
+            done
+            echo -e "${GREEN}[✓] Usuarios expirados eliminados.${NC}"
+            read -p "Presiona Enter..." aux; admin_cuentas ;;
+        0) menu_principal ;;
+        *) admin_cuentas ;;
+    esac
+}
+
+menu_protocolos() {
+    while true; do
+        clear
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e "${YELLOW}                ADMINISTRADOR DE PROTOCOLOS                 ${NC}"
+        echo -e "${RED}============================================================${NC}"
+        echo -e " ${CYAN}DROPBEAR:${NC} 90                  ${CYAN}PYTHON3:${NC} 80"
+        echo -e " ${CYAN}SSH:${NC} 22                       ${CYAN}UDP-CUSTOM:${NC} 36712"
+        echo -e "${RED}============================================================${NC}"
+        echo -e " ${CYAN}[1]>${NC} AJUSTES SSH         $(check_status 22 ssh)  ${CYAN}[11]>${NC} OPENVPN             $(check_status 1194 openvpn)"
+        echo -e " ${CYAN}[2]>${NC} DROPBEAR            $(check_status 90 dropbear)  ${CYAN}[12]>${NC} CHECKUSER ONLINE    $(check_status 8123 checkuser)"
+        echo -e " ${CYAN}[3]>${NC} SOCKS PYTHON        $(check_status 8080 socks.py)  ${CYAN}[13]>${NC} ATKEN and HASH      $(check_status 9999 token)"
+        echo -e " ${CYAN}[4]>${NC} STUNNEL (SSL)       $(check_status 443 stunnel)  ${CYAN}[14]>${NC} FILEBROWSER         $(check_status 8082 filebrowser)"
+        echo -e " ${CYAN}[5]>${NC} SLOWDNS             $(check_status 53 dnstt)  ${CYAN}[15]>${NC} V2RAY/XRAY          $(check_status 8000 xray)"
+        echo -e " ${CYAN}[6]>${NC} WS-EPRO             $(check_status 80 proxy)  ${CYAN}[16]>${NC} SSHGO               $(check_status 2222 sshgo)"
+        echo -e " ${CYAN}[7]>${NC} UDP-CUSTOM          $(check_status 36712 udp-custom)  ${CYAN}[17]>${NC} WIREGUARD           $(check_status 51820 wg)"
+        echo -e " ${CYAN}[8]>${NC} UDP-HYSTERIA        $(check_status 4434 hysteria)  ${CYAN}[18]>${NC} HCR CUSTOM          $(check_status 8888 hcr)"
+        echo -e " ${CYAN}[9]>${NC} BADVPN-UDPGW        $(check_status 7300 badvpn)  ${CYAN}[19]>${NC} BHTTP TUNNEL        $(check_status 8989 bhttp)"
+        echo -e " ${CYAN}[10]>${NC} SQUID               $(check_status 3128 squid)"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e " ${RED}[0] Volver${NC}"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        read -p " Ingresa una Opcion: " op_prot
+
+        case $op_prot in
+            1) systemctl restart ssh || systemctl restart sshd; sleep 1 ;;
+            2) apt-get install dropbear -y 2>/dev/null; systemctl restart dropbear; sleep 1 ;;
+            7)
+                mkdir -p /root/udp
+                wget -O /root/udp/udp-custom "https://raw.githubusercontent.com/AnonymouSX-x/UDP-Custom/main/udp-custom" 2>/dev/null
+                chmod +x /root/udp/udp-custom
+                echo '{"listen": ":36712", "stream_buffer": 16777216, "receive_buffer": 16777216, "auth": {"mode": "pass"}}' > /root/udp/config.json
+                echo -e "[Unit]\nDescription=UDP Custom Service\nAfter=network.target\n\n[Service]\nUser=root\nType=simple\nExecStart=/root/udp/udp-custom server\nWorkingDirectory=/root/udp/\nRestart=always\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/udp-custom.service
+                systemctl daemon-reload && systemctl enable udp-custom && systemctl restart udp-custom
+                sleep 1 ;;
+            9)
+                wget -O /usr/local/bin/badvpn-udpgw "https://raw.githubusercontent.com/daynn3/badvpn-udpgw/master/badvpn-udpgw" 2>/dev/null
+                chmod +x /usr/local/bin/badvpn-udpgw
+                echo -e "[Unit]\nDescription=Servicio BadVPN UDP Gateway\nAfter=network.target\n\n[Service]\nExecStart=/usr/local/bin/badvpn-udpgw --listen-addr 127.0.0.1:7300 --max-clients 1000 --max-connections-for-client 10\nRestart=always\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/bdr-udpgw.service
+                systemctl daemon-reload && systemctl enable bdr-udpgw && systemctl restart bdr-udpgw
+                sleep 1 ;;
+            0) break ;;
+            *) sleep 1 ;;
+        esac
+    done
+    menu_principal
+}
+
+desinstalar_panel() {
+    read -p "¿Deseas desinstalar el panel? [s/N]: " confirm
+    if [[ "$confirm" =~ ^[sS]$ ]]; then
+        rm -f /usr/local/bin/menu /usr/local/bin/pacheco /etc/motd
+        echo -e "${RED}[✓] Panel desinstalado correctamente.${NC}"
+        exit 0
+    fi
+    menu_principal
+}
+
+cp "$0" /usr/local/bin/menu 2>/dev/null || true
+chmod +x /usr/local/bin/menu
+ln -sf /usr/local/bin/menu /usr/local/bin/pacheco
+sed -i 's/\r$//' /usr/local/bin/menu
+
+echo -e "\n  AAA   DDDD   M   M  AAAAA  EEEEE  CCCC  H   H  EEEEE  CCCC  O000\n A   A  D   D  MM MM  A   A  E      C     H   H  E      C     O  0\n AAAAA  D   D  M M M  AAAAA  EEEE   C     HHHHH  EEEE   C     O  0\n A   A  DDDD   M   M  A   A  EEEEE  CCCC  H   H  EEEEE  CCCC  O000\n\n               RESELLER : @AndresPacheco\n\n Para iniciar ADMPacheco escriba: menu\n" > /etc/motd
+
+menu_principal
