@@ -15,6 +15,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
+# Apertura automática de puertos en Firewall (UFW / IPTables)
 abrir_puerto() {
     local port=$1
     local proto=${2:-tcp}
@@ -23,6 +24,7 @@ abrir_puerto() {
     iptables-save >/dev/null 2>&1 || true
 }
 
+# Instalación de dependencias base y entorno
 instalar_dependencias() {
     if [ -f /etc/vps-pacheco/.deps_ok ]; then
         return 0
@@ -292,7 +294,12 @@ menu_protocolos() {
                 echo '{"listen": ":36712", "stream_buffer": 16777216, "receive_buffer": 16777216, "auth": {"mode": "pass"}}' > /root/udp/config.json
                 echo -e "[Unit]\nDescription=UDP Custom Service\nAfter=network.target\n\n[Service]\nUser=root\nType=simple\nWorkingDirectory=/root/udp/\nExecStart=/root/udp/udp-custom server\nRestart=always\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/udp-custom.service
                 systemctl daemon-reload && systemctl enable udp-custom && systemctl restart udp-custom
-                echo -e "${GREEN}[✓] UDP-Custom activo en puerto 36712.${NC}"
+                
+                if systemctl is-active --quiet udp-custom; then
+                    echo -e "${GREEN}[✓] UDP-Custom activo y corriendo en puerto 36712.${NC}"
+                else
+                    echo -e "${RED}[!] Error al iniciar UDP-Custom. Revisa con systemctl status udp-custom${NC}"
+                fi
                 read -r -p "Presiona Enter para continuar..." aux ;;
             8)
                 echo -e "${YELLOW}[+] Instalando UDP Hysteria (Puerto 4434)...${NC}"
@@ -364,15 +371,4 @@ menu_protocolos() {
                 read -r -p "Presiona Enter para continuar..." aux ;;
             19)
                 echo -e "${GREEN}[✓] BHTTP Tunnel activo en puerto 8989.${NC}"
-                read -r -p "Presiona Enter para continuar..." aux ;;
-            0) break ;;
-            *) echo -e "${RED}Opción inválida.${NC}"; sleep 1 ;;
-        esac
-    done
-}
-
-desinstalar_panel() {
-    read -r -p "¿Deseas desinstalar el panel? [s/N]: " confirm
-    if [[ "$confirm" =~ ^[sS]$ ]]; then
-        rm -f /usr/local/bin/menu /usr/local/bin/pacheco /etc/motd /etc/vps-pacheco/.deps_ok
-        
+                read -r -p "Presiona Enter para cont
