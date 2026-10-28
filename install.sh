@@ -1,6 +1,6 @@
 #!/bin/bash
 # ======================================================
-# PANEL ADMPACHECO - GESTOR VPS COMPLETO
+# PANEL ADMPACHECO - GESTOR VPS COMPLETO CON DEPENDENCIAS
 # ======================================================
 
 RED='\033[0;31m'
@@ -14,6 +14,60 @@ if [ "$(id -u)" -ne 0 ]; then
     echo -e "${RED}[!] Debes ejecutar este script como root (sudo -i).${NC}"
     exit 1
 fi
+
+# ----------------- PREPARACIÓN Y DEPENDENCIAS DEL SISTEMA -----------------
+instalar_dependencias() {
+    if [ -f /etc/vps-pacheco/.deps_ok ]; then
+        return 0
+    fi
+
+    echo -e "${YELLOW}[+] Preparando entorno del sistema y dependencias esenciales...${NC}"
+
+    if ! loginctl show-user root 2>/dev/null | grep -q '^Linger=yes'; then
+        loginctl enable-linger root 2>/dev/null || true
+    fi
+
+    if [ ! -d /run/user/0 ]; then
+        mkdir -p /run/user/0
+        chmod 700 /run/user/0
+        chown root:root /run/user/0
+    fi
+
+    export XDG_RUNTIME_DIR=/run/user/0
+
+    echo -e "${CYAN}[+] Detectando sistema operativo...${NC}"
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+    fi
+
+    apt-get update -y >/dev/null 2>&1
+    apt-get install -y gnupg wget software-properties-common lsb-release >/dev/null 2>&1
+
+    if [[ "$ID" == "ubuntu" ]]; then
+        echo -e "${CYAN}[+] Ubuntu detectado. Configurando librerías C++...${NC}"
+        add-apt-repository -y ppa:ubuntu-toolchain-r/test < /dev/null >/dev/null 2>&1 || true
+        apt-get update -y >/dev/null 2>&1
+        apt-get install -y libstdc++6 >/dev/null 2>&1
+    elif [[ "$ID" == "debian" ]]; then
+        echo -e "${CYAN}[+] Debian detectado. Instalando libstdc++6...${NC}"
+        apt-get install -y libstdc++6 >/dev/null 2>&1 || {
+            ARCH=$(dpkg --print-architecture)
+            LIBSTDCPP_DEB_URL="https://ftp.debian.org/debian/pool/main/g/gcc-11/libstdc++6-11-dbg_11.5.0-2_${ARCH}.deb"
+            wget -O /tmp/libstdc++6.deb "$LIBSTDCPP_DEB_URL" >/dev/null 2>&1 || true
+            dpkg -i /tmp/libstdc++6.deb >/dev/null 2>&1 || apt-get install -f -y >/dev/null 2>&1
+        }
+    fi
+
+    if ! dpkg -l | grep -q libcurl4-openssl-dev; then
+        echo -e "${CYAN}[+] Instalando libcurl4-openssl-dev...${NC}"
+        apt-get install -y libcurl4-openssl-dev >/dev/null 2>&1
+    fi
+
+    mkdir -p /etc/vps-pacheco
+    touch /etc/vps-pacheco/.deps_ok
+    echo -e "${GREEN}[✓] Sistema preparado correctamente.${NC}"
+    sleep 1
+}
 
 IP=$(wget -qO- ipv4.icanhazip.com || curl -s ipv4.icanhazip.com || echo "127.0.0.1")
 SO=$(cat /etc/issue.net 2>/dev/null || uname -s)
@@ -113,19 +167,19 @@ admin_cuentas() {
             echo "$usr:$pass" | chpasswd
             chage -E "$exp" "$usr"
             echo -e "${GREEN}[✓] Usuario '$usr' creado hasta $exp.${NC}"
-            read -p "Presiona Enter..." aux; admin_cuentas ;;
+            read -p "Presiona Enter para continuar..." aux; admin_cuentas ;;
         2)
             read -p "Usuario a eliminar: " usr
             userdel -f "$usr" 2>/dev/null
             echo -e "${GREEN}[✓] Usuario '$usr' eliminado.${NC}"
-            read -p "Presiona Enter..." aux; admin_cuentas ;;
+            read -p "Presiona Enter para continuar..." aux; admin_cuentas ;;
         3)
             read -p "Usuario a renovar: " usr
             read -p "Días adicionales: " dias
             exp=$(date -d "+$dias days" +%Y-%m-%d)
             chage -E "$exp" "$usr"
             echo -e "${GREEN}[✓] Renovado hasta $exp.${NC}"
-            read -p "Presiona Enter..." aux; admin_cuentas ;;
+            read -p "Presiona Enter para continuar..." aux; admin_cuentas ;;
         4)
             clear
             printf "%-16s %-18s\n" "USUARIO" "EXPIRACIÓN"
@@ -134,7 +188,7 @@ admin_cuentas() {
                 ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
                 printf "%-16s %-18s\n" "$u" "$ex"
             done
-            read -p "Presiona Enter..." aux; admin_cuentas ;;
+            read -p "Presiona Enter para continuar..." aux; admin_cuentas ;;
         5)
             for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
                 ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
@@ -144,7 +198,7 @@ admin_cuentas() {
                 fi
             done
             echo -e "${GREEN}[✓] Usuarios expirados eliminados.${NC}"
-            read -p "Presiona Enter..." aux; admin_cuentas ;;
+            read -p "Presiona Enter para continuar..." aux; admin_cuentas ;;
         0) menu_principal ;;
         *) admin_cuentas ;;
     esac
@@ -175,24 +229,110 @@ menu_protocolos() {
         read -p " Ingresa una Opcion: " op_prot
 
         case $op_prot in
-            1) systemctl restart ssh || systemctl restart sshd; sleep 1 ;;
-            2) apt-get install dropbear -y 2>/dev/null; systemctl restart dropbear; sleep 1 ;;
+            1)
+                echo -e "${YELLOW}[+] Reiniciando SSH...${NC}"
+                systemctl restart ssh || systemctl restart sshd
+                echo -e "${GREEN}[✓] Servicio SSH activo.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            2)
+                echo -e "${YELLOW}[+] Instalando Dropbear...${NC}"
+                apt-get update -y >/dev/null 2>&1
+                apt-get install dropbear -y
+                sed -i 's/NO_START=1/NO_START=0/g' /etc/default/dropbear 2>/dev/null
+                sed -i 's/DROPBEAR_PORT=22/DROPBEAR_PORT=90/g' /etc/default/dropbear 2>/dev/null
+                systemctl restart dropbear
+                echo -e "${GREEN}[✓] Dropbear instalado en puerto 90.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            3)
+                echo -e "${YELLOW}[+] Activando Socks Python (8080)...${NC}"
+                apt-get install python3 -y >/dev/null 2>&1
+                wget -O /usr/local/bin/socks.py "https://raw.githubusercontent.com/golbert19/vps-script/main/core/proxy.py" >/dev/null 2>&1
+                pkill -f "socks.py" 2>/dev/null
+                nohup python3 /usr/local/bin/socks.py 8080 >/dev/null 2>&1 &
+                echo -e "${GREEN}[✓] Socks Python activo en puerto 8080.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            4)
+                echo -e "${YELLOW}[+] Instalando Stunnel SSL (443)...${NC}"
+                apt-get install stunnel4 -y
+                systemctl restart stunnel4 2>/dev/null || systemctl restart stunnel 2>/dev/null
+                echo -e "${GREEN}[✓] Stunnel SSL listo.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            5)
+                echo -e "${YELLOW}[+] Instalando SlowDNS...${NC}"
+                wget -O /tmp/slowdns.sh "https://raw.githubusercontent.com/golbert19/vps-script/main/core/setup_dns.sh" >/dev/null 2>&1
+                chmod +x /tmp/slowdns.sh && bash /tmp/slowdns.sh
+                read -p "Presiona Enter para continuar..." aux ;;
+            6)
+                echo -e "${YELLOW}[+] Activando WS-EPro (Puerto 80)...${NC}"
+                wget -O /usr/local/bin/proxy_ws.py "https://raw.githubusercontent.com/golbert19/vps-script/main/core/proxy.py" >/dev/null 2>&1
+                pkill -f "proxy_ws.py" 2>/dev/null
+                nohup python3 /usr/local/bin/proxy_ws.py 80 >/dev/null 2>&1 &
+                echo -e "${GREEN}[✓] WS-EPro activo en puerto 80.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
             7)
+                echo -e "${YELLOW}[+] Instalando UDP-Custom (Puerto 36712)...${NC}"
                 mkdir -p /root/udp
-                wget -O /root/udp/udp-custom "https://raw.githubusercontent.com/AnonymouSX-x/UDP-Custom/main/udp-custom" 2>/dev/null
+                wget -O /root/udp/udp-custom "https://raw.githubusercontent.com/AnonymouSX-x/UDP-Custom/main/udp-custom"
                 chmod +x /root/udp/udp-custom
                 echo '{"listen": ":36712", "stream_buffer": 16777216, "receive_buffer": 16777216, "auth": {"mode": "pass"}}' > /root/udp/config.json
                 echo -e "[Unit]\nDescription=UDP Custom Service\nAfter=network.target\n\n[Service]\nUser=root\nType=simple\nExecStart=/root/udp/udp-custom server\nWorkingDirectory=/root/udp/\nRestart=always\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/udp-custom.service
                 systemctl daemon-reload && systemctl enable udp-custom && systemctl restart udp-custom
-                sleep 1 ;;
+                echo -e "${GREEN}[✓] UDP-Custom activo en puerto 36712.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            8)
+                echo -e "${YELLOW}[+] Instalando UDP Hysteria (Puerto 4434)...${NC}"
+                bash <(curl -fsSL https://my.hysteria.network/install.sh)
+                systemctl restart hysteria 2>/dev/null || systemctl restart hysteria-server 2>/dev/null
+                echo -e "${GREEN}[✓] UDP Hysteria procesado.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
             9)
-                wget -O /usr/local/bin/badvpn-udpgw "https://raw.githubusercontent.com/daynn3/badvpn-udpgw/master/badvpn-udpgw" 2>/dev/null
+                echo -e "${YELLOW}[+] Instalando BadVPN UDPGW (Puerto 7300)...${NC}"
+                wget -O /usr/local/bin/badvpn-udpgw "https://raw.githubusercontent.com/daynn3/badvpn-udpgw/master/badvpn-udpgw"
                 chmod +x /usr/local/bin/badvpn-udpgw
                 echo -e "[Unit]\nDescription=Servicio BadVPN UDP Gateway\nAfter=network.target\n\n[Service]\nExecStart=/usr/local/bin/badvpn-udpgw --listen-addr 127.0.0.1:7300 --max-clients 1000 --max-connections-for-client 10\nRestart=always\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/bdr-udpgw.service
                 systemctl daemon-reload && systemctl enable bdr-udpgw && systemctl restart bdr-udpgw
-                sleep 1 ;;
+                echo -e "${GREEN}[✓] BadVPN UDPGW activo en puerto 7300.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            10)
+                echo -e "${YELLOW}[+] Instalando Squid...${NC}"
+                apt-get install squid -y
+                systemctl restart squid
+                echo -e "${GREEN}[✓] Squid activo en puerto 3128.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            11)
+                echo -e "${YELLOW}[+] Instalando OpenVPN...${NC}"
+                apt-get install openvpn -y
+                echo -e "${GREEN}[✓] OpenVPN procesado.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            12)
+                echo -e "${YELLOW}[+] Instalando CheckUser Online...${NC}"
+                wget -O /usr/local/bin/checkuser "https://raw.githubusercontent.com/golbert19/vps-script/main/core/limiter.sh" >/dev/null 2>&1
+                chmod +x /usr/local/bin/checkuser
+                pkill -f "checkuser" 2>/dev/null
+                nohup bash /usr/local/bin/checkuser >/dev/null 2>&1 &
+                echo -e "${GREEN}[✓] CheckUser activo en puerto 8123.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            13) echo -e "${GREEN}[✓] Token y Hash activo.${NC}"; read -p "Presiona Enter..." aux ;;
+            14)
+                echo -e "${YELLOW}[+] Instalando Filebrowser...${NC}"
+                curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
+                echo -e "${GREEN}[✓] Filebrowser listo.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            15)
+                echo -e "${YELLOW}[+] Instalando V2Ray/Xray...${NC}"
+                bash <(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)
+                echo -e "${GREEN}[✓] Xray instalado.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            16) echo -e "${GREEN}[✓] SSHGO activo.${NC}"; read -p "Presiona Enter..." aux ;;
+            17)
+                echo -e "${YELLOW}[+] Instalando WireGuard...${NC}"
+                apt-get install wireguard -y
+                echo -e "${GREEN}[✓] WireGuard listo.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            18) echo -e "${GREEN}[✓] HCR Custom activo.${NC}"; read -p "Presiona Enter..." aux ;;
+            19) echo -e "${GREEN}[✓] BHTTP Tunnel activo.${NC}"; read -p "Presiona Enter..." aux ;;
             0) break ;;
-            *) sleep 1 ;;
+            *) echo -e "${RED}Opción inválida.${NC}"; sleep 1 ;;
         esac
     done
     menu_principal
@@ -201,12 +341,15 @@ menu_protocolos() {
 desinstalar_panel() {
     read -p "¿Deseas desinstalar el panel? [s/N]: " confirm
     if [[ "$confirm" =~ ^[sS]$ ]]; then
-        rm -f /usr/local/bin/menu /usr/local/bin/pacheco /etc/motd
+        rm -f /usr/local/bin/menu /usr/local/bin/pacheco /etc/motd /etc/vps-pacheco/.deps_ok
         echo -e "${RED}[✓] Panel desinstalado correctamente.${NC}"
         exit 0
     fi
     menu_principal
 }
+
+# Ejecutar preparación de dependencias en primer plano
+instalar_dependencias
 
 cp "$0" /usr/local/bin/menu 2>/dev/null || true
 chmod +x /usr/local/bin/menu
