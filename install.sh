@@ -15,7 +15,6 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# Apertura de puertos en Firewall (UFW / IPTables)
 abrir_puerto() {
     local port=$1
     local proto=${2:-tcp}
@@ -24,7 +23,6 @@ abrir_puerto() {
     iptables-save >/dev/null 2>&1 || true
 }
 
-# Preparación de dependencias del sistema y entorno
 instalar_dependencias() {
     if [ -f /etc/vps-pacheco/.deps_ok ]; then
         return 0
@@ -131,7 +129,7 @@ menu_principal() {
         echo -e "${RED}------------------------------------------------------------${NC}"
         echo -e " ${RED}[0] SALIR DEL VPS${NC}   ${BLUE}[8] SALIR DEL SCRIPT${NC}   ${CYAN}[9] REINICIAR VPS${NC}"
         echo -e "${RED}------------------------------------------------------------${NC}"
-        read -p " Ingresa una Opcion: " opcion < /dev/tty
+        read -r -p " Ingresa una Opcion: " opcion
 
         case $opcion in
             1) admin_cuentas ;;
@@ -163,31 +161,31 @@ admin_cuentas() {
         echo -e "${RED}------------------------------------------------------------${NC}"
         echo -e " ${RED}[0] VOLVER${NC}"
         echo -e "${RED}------------------------------------------------------------${NC}"
-        read -p " Ingresa una Opcion: " op_acc < /dev/tty
+        read -r -p " Ingresa una Opcion: " op_acc
 
         case $op_acc in
             1)
-                read -p "Nombre del usuario: " usr < /dev/tty
-                read -p "Contraseña: " pass < /dev/tty
-                read -p "Días de duración: " dias < /dev/tty
+                read -r -p "Nombre del usuario: " usr
+                read -r -p "Contraseña: " pass
+                read -r -p "Días de duración: " dias
                 exp=$(date -d "+$dias days" +%Y-%m-%d)
                 useradd -M -s /bin/false "$usr" 2>/dev/null
                 echo "$usr:$pass" | chpasswd
                 chage -E "$exp" "$usr"
                 echo -e "${GREEN}[✓] Usuario '$usr' creado hasta $exp.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             2)
-                read -p "Usuario a eliminar: " usr < /dev/tty
+                read -r -p "Usuario a eliminar: " usr
                 userdel -f "$usr" 2>/dev/null
                 echo -e "${GREEN}[✓] Usuario '$usr' eliminado.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             3)
-                read -p "Usuario a renovar: " usr < /dev/tty
-                read -p "Días adicionales: " dias < /dev/tty
+                read -r -p "Usuario a renovar: " usr
+                read -r -p "Días adicionales: " dias
                 exp=$(date -d "+$dias days" +%Y-%m-%d)
                 chage -E "$exp" "$usr"
                 echo -e "${GREEN}[✓] Renovado hasta $exp.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             4)
                 clear
                 printf "%-16s %-18s\n" "USUARIO" "EXPIRACIÓN"
@@ -196,7 +194,7 @@ admin_cuentas() {
                     ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
                     printf "%-16s %-18s\n" "$u" "$ex"
                 done
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             5)
                 for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
                     ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
@@ -206,7 +204,7 @@ admin_cuentas() {
                     fi
                 done
                 echo -e "${GREEN}[✓] Usuarios expirados eliminados.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             0) break ;;
             *) sleep 1 ;;
         esac
@@ -235,7 +233,7 @@ menu_protocolos() {
         echo -e "${RED}------------------------------------------------------------${NC}"
         echo -e " ${RED}[0] Volver${NC}"
         echo -e "${RED}------------------------------------------------------------${NC}"
-        read -p " Ingresa una Opcion: " op_prot < /dev/tty
+        read -r -p " Ingresa una Opcion: " op_prot
 
         case $op_prot in
             1)
@@ -243,7 +241,7 @@ menu_protocolos() {
                 abrir_puerto 22 tcp
                 systemctl restart ssh || systemctl restart sshd
                 echo -e "${GREEN}[✓] Servicio SSH activo.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             2)
                 echo -e "${YELLOW}[+] Instalando Dropbear (Puerto 90)...${NC}"
                 abrir_puerto 90 tcp
@@ -253,7 +251,7 @@ menu_protocolos() {
                 sed -i 's/DROPBEAR_PORT=22/DROPBEAR_PORT=90/g' /etc/default/dropbear 2>/dev/null
                 systemctl restart dropbear
                 echo -e "${GREEN}[✓] Dropbear instalado en puerto 90.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             3)
                 echo -e "${YELLOW}[+] Activando Socks Python (Puerto 8080)...${NC}"
                 abrir_puerto 8080 tcp
@@ -262,21 +260,21 @@ menu_protocolos() {
                 pkill -f "socks.py" 2>/dev/null
                 nohup python3 /usr/local/bin/socks.py 8080 >/dev/null 2>&1 &
                 echo -e "${GREEN}[✓] Socks Python activo en puerto 8080.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             4)
                 echo -e "${YELLOW}[+] Instalando Stunnel SSL (Puerto 443)...${NC}"
                 abrir_puerto 443 tcp
                 apt-get install stunnel4 -y
                 systemctl restart stunnel4 2>/dev/null || systemctl restart stunnel 2>/dev/null
                 echo -e "${GREEN}[✓] Stunnel SSL listo.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             5)
                 echo -e "${YELLOW}[+] Instalando SlowDNS (Puerto 53)...${NC}"
                 abrir_puerto 53 udp
                 abrir_puerto 53 tcp
                 wget -O /tmp/slowdns.sh "https://raw.githubusercontent.com/golbert19/vps-script/main/core/setup_dns.sh" >/dev/null 2>&1
                 chmod +x /tmp/slowdns.sh && bash /tmp/slowdns.sh
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             6)
                 echo -e "${YELLOW}[+] Activando WS-EPro (Puerto 80)...${NC}"
                 abrir_puerto 80 tcp
@@ -284,7 +282,7 @@ menu_protocolos() {
                 pkill -f "proxy_ws.py" 2>/dev/null
                 nohup python3 /usr/local/bin/proxy_ws.py 80 >/dev/null 2>&1 &
                 echo -e "${GREEN}[✓] WS-EPro activo en puerto 80.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             7)
                 echo -e "${YELLOW}[+] Instalando UDP-Custom (Puerto 36712)...${NC}"
                 abrir_puerto 36712 udp
@@ -295,14 +293,14 @@ menu_protocolos() {
                 echo -e "[Unit]\nDescription=UDP Custom Service\nAfter=network.target\n\n[Service]\nUser=root\nType=simple\nWorkingDirectory=/root/udp/\nExecStart=/root/udp/udp-custom server\nRestart=always\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/udp-custom.service
                 systemctl daemon-reload && systemctl enable udp-custom && systemctl restart udp-custom
                 echo -e "${GREEN}[✓] UDP-Custom activo en puerto 36712.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             8)
                 echo -e "${YELLOW}[+] Instalando UDP Hysteria (Puerto 4434)...${NC}"
                 abrir_puerto 4434 udp
                 bash <(curl -fsSL https://my.hysteria.network/install.sh)
                 systemctl restart hysteria 2>/dev/null || systemctl restart hysteria-server 2>/dev/null
                 echo -e "${GREEN}[✓] UDP Hysteria instalado.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             9)
                 echo -e "${YELLOW}[+] Instalando BadVPN UDPGW (Puerto 7300)...${NC}"
                 abrir_puerto 7300 udp
@@ -312,21 +310,21 @@ menu_protocolos() {
                 echo -e "[Unit]\nDescription=Servicio BadVPN UDP Gateway\nAfter=network.target\n\n[Service]\nExecStart=/usr/local/bin/badvpn-udpgw --listen-addr 127.0.0.1:7300 --max-clients 1000 --max-connections-for-client 10\nRestart=always\n\n[Install]\nWantedBy=multi-user.target" > /etc/systemd/system/bdr-udpgw.service
                 systemctl daemon-reload && systemctl enable bdr-udpgw && systemctl restart bdr-udpgw
                 echo -e "${GREEN}[✓] BadVPN UDPGW activo en puerto 7300.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             10)
                 echo -e "${YELLOW}[+] Instalando Squid (Puerto 3128)...${NC}"
                 abrir_puerto 3128 tcp
                 apt-get install squid -y
                 systemctl restart squid
                 echo -e "${GREEN}[✓] Squid activo en puerto 3128.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             11)
                 echo -e "${YELLOW}[+] Instalando OpenVPN (Puerto 1194)...${NC}"
                 abrir_puerto 1194 udp
                 abrir_puerto 1194 tcp
                 apt-get install openvpn -y
                 echo -e "${GREEN}[✓] OpenVPN procesado.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             12)
                 echo -e "${YELLOW}[+] Instalando CheckUser Online (Puerto 8123)...${NC}"
                 abrir_puerto 8123 tcp
@@ -335,35 +333,46 @@ menu_protocolos() {
                 pkill -f "checkuser" 2>/dev/null
                 nohup bash /usr/local/bin/checkuser >/dev/null 2>&1 &
                 echo -e "${GREEN}[✓] CheckUser activo en puerto 8123.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             13)
                 echo -e "${GREEN}[✓] Token y Hash activo en puerto 9999.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             14)
                 echo -e "${YELLOW}[+] Instalando Filebrowser (Puerto 8082)...${NC}"
                 abrir_puerto 8082 tcp
                 curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
                 echo -e "${GREEN}[✓] Filebrowser listo.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             15)
                 echo -e "${YELLOW}[+] Instalando V2Ray/Xray (Puerto 8000)...${NC}"
                 abrir_puerto 8000 tcp
                 abrir_puerto 8000 udp
                 bash <(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)
                 echo -e "${GREEN}[✓] Xray instalado.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             16)
                 echo -e "${GREEN}[✓] SSHGO activo en puerto 2222.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             17)
                 echo -e "${YELLOW}[+] Instalando WireGuard (Puerto 51820)...${NC}"
                 abrir_puerto 51820 udp
                 apt-get install wireguard -y
                 echo -e "${GREEN}[✓] WireGuard listo.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             18)
                 echo -e "${GREEN}[✓] HCR Custom activo en puerto 8888.${NC}"
-                read -p "Presiona Enter para continuar..." aux < /dev/tty ;;
+                read -r -p "Presiona Enter para continuar..." aux ;;
             19)
                 echo -e "${GREEN}[✓] BHTTP Tunnel activo en puerto 8989.${NC}"
-                read -p "Presiona Enter para conti
+                read -r -p "Presiona Enter para continuar..." aux ;;
+            0) break ;;
+            *) echo -e "${RED}Opción inválida.${NC}"; sleep 1 ;;
+        esac
+    done
+}
+
+desinstalar_panel() {
+    read -r -p "¿Deseas desinstalar el panel? [s/N]: " confirm
+    if [[ "$confirm" =~ ^[sS]$ ]]; then
+        rm -f /usr/local/bin/menu /usr/local/bin/pacheco /etc/motd /etc/vps-pacheco/.deps_ok
+        
