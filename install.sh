@@ -106,107 +106,111 @@ contar_usuarios() {
 }
 
 menu_principal() {
-    clear
-    contar_usuarios
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e "${YELLOW}                     @AndresPacheco                         ${NC}"
-    echo -e "${RED}============================================================${NC}"
-    echo -e " ${CYAN}S.O:${NC}    $SO         ${CYAN}Fecha:${NC} $(date +'%d-%m-%Y')"
-    echo -e " ${CYAN}IP:${NC}     $IP                     ${CYAN}Hora:${NC}  $(date +'%H:%M:%S')"
-    echo -e "${RED}============================================================${NC}"
-    echo -e " ${GREEN}ACTIVA:${NC} $activos   ${RED}EXPIRADA:${NC} $expirados   ${YELLOW}BLOQUEADA:${NC} 0   ${CYAN}TOTAL:${NC} $total"
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e " ${CYAN}[1]>${NC} ADMINISTRAR CUENTAS (SSH/DROPBEAR)"
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e " ${CYAN}[2]>${NC} CONFIGURACION DE PROTOCOLOS"
-    echo -e " ${CYAN}[3]>${NC} HERRAMIENTAS EXTRAS"
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e " ${CYAN}[4]>${NC} CONFIGURA API Y BOTS"
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e " ${CYAN}[5]>${NC} CONFIGURACION DEL SCRIPT"
-    echo -e " ${CYAN}[6]>${NC} IDIOMA / LANGUAGE"
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e " ${CYAN}[7]>${NC} ${RED}[!] DESINSTALAR PANEL${NC}"
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e " ${RED}[0] SALIR DEL VPS${NC}   ${BLUE}[8] SALIR DEL SCRIPT${NC}   ${CYAN}[9] REINICIAR VPS${NC}"
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    read -p " Ingresa una Opcion: " opcion
+    while true; do
+        clear
+        contar_usuarios
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e "${YELLOW}                     @AndresPacheco                         ${NC}"
+        echo -e "${RED}============================================================${NC}"
+        echo -e " ${CYAN}S.O:${NC}    $SO         ${CYAN}Fecha:${NC} $(date +'%d-%m-%Y')"
+        echo -e " ${CYAN}IP:${NC}     $IP                     ${CYAN}Hora:${NC}  $(date +'%H:%M:%S')"
+        echo -e "${RED}============================================================${NC}"
+        echo -e " ${GREEN}ACTIVA:${NC} $activos   ${RED}EXPIRADA:${NC} $expirados   ${YELLOW}BLOQUEADA:${NC} 0   ${CYAN}TOTAL:${NC} $total"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e " ${CYAN}[1]>${NC} ADMINISTRAR CUENTAS (SSH/DROPBEAR)"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e " ${CYAN}[2]>${NC} CONFIGURACION DE PROTOCOLOS"
+        echo -e " ${CYAN}[3]>${NC} HERRAMIENTAS EXTRAS"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e " ${CYAN}[4]>${NC} CONFIGURA API Y BOTS"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e " ${CYAN}[5]>${NC} CONFIGURACION DEL SCRIPT"
+        echo -e " ${CYAN}[6]>${NC} IDIOMA / LANGUAGE"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e " ${CYAN}[7]>${NC} ${RED}[!] DESINSTALAR PANEL${NC}"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e " ${RED}[0] SALIR DEL VPS${NC}   ${BLUE}[8] SALIR DEL SCRIPT${NC}   ${CYAN}[9] REINICIAR VPS${NC}"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        read -p " Ingresa una Opcion: " opcion
 
-    case $opcion in
-        1) admin_cuentas ;;
-        2) menu_protocolos ;;
-        3) echo -e "${YELLOW}[+] Herramientas Extras...${NC}"; sleep 1; menu_principal ;;
-        4) echo -e "${YELLOW}[+] Configuración de Bots API...${NC}"; sleep 1; menu_principal ;;
-        5) echo -e "${YELLOW}[+] Configuración del Script...${NC}"; sleep 1; menu_principal ;;
-        6) echo -e "${YELLOW}[+] Idioma: Español.${NC}"; sleep 1; menu_principal ;;
-        7) desinstalar_panel ;;
-        8) exit 0 ;;
-        9) reboot ;;
-        0) logout ;;
-        *) echo -e "${RED}Opción no válida.${NC}"; sleep 1; menu_principal ;;
-    esac
+        case $opcion in
+            1) admin_cuentas ;;
+            2) menu_protocolos ;;
+            3) echo -e "${YELLOW}[+] Herramientas Extras...${NC}"; sleep 1 ;;
+            4) echo -e "${YELLOW}[+] Configuración de Bots API...${NC}"; sleep 1 ;;
+            5) echo -e "${YELLOW}[+] Configuración del Script...${NC}"; sleep 1 ;;
+            6) echo -e "${YELLOW}[+] Idioma: Español.${NC}"; sleep 1 ;;
+            7) desinstalar_panel ;;
+            8) exit 0 ;;
+            9) reboot ;;
+            0) logout ;;
+            *) echo -e "${RED}Opción no válida.${NC}"; sleep 1 ;;
+        esac
+    done
 }
 
 admin_cuentas() {
-    clear
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e "${YELLOW}             ADMINISTRAR CUENTAS (SSH/DROPBEAR)             ${NC}"
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e " ${CYAN}[1]>${NC} Crear Usuario SSH"
-    echo -e " ${CYAN}[2]>${NC} Eliminar Usuario"
-    echo -e " ${CYAN}[3]>${NC} Renovar Usuario"
-    echo -e " ${CYAN}[4]>${NC} Listar Usuarios"
-    echo -e " ${CYAN}[5]>${NC} Limpiar Expirados"
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e " ${RED}[0] VOLVER${NC}"
-    echo -e "${RED}------------------------------------------------------------${NC}"
-    read -p " Ingresa una Opcion: " op_acc
+    while true; do
+        clear
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e "${YELLOW}             ADMINISTRAR CUENTAS (SSH/DROPBEAR)             ${NC}"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e " ${CYAN}[1]>${NC} Crear Usuario SSH"
+        echo -e " ${CYAN}[2]>${NC} Eliminar Usuario"
+        echo -e " ${CYAN}[3]>${NC} Renovar Usuario"
+        echo -e " ${CYAN}[4]>${NC} Listar Usuarios"
+        echo -e " ${CYAN}[5]>${NC} Limpiar Expirados"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e " ${RED}[0] VOLVER${NC}"
+        echo -e "${RED}------------------------------------------------------------${NC}"
+        read -p " Ingresa una Opcion: " op_acc
 
-    case $op_acc in
-        1)
-            read -p "Nombre del usuario: " usr
-            read -p "Contraseña: " pass
-            read -p "Días de duración: " dias
-            exp=$(date -d "+$dias days" +%Y-%m-%d)
-            useradd -M -s /bin/false "$usr" 2>/dev/null
-            echo "$usr:$pass" | chpasswd
-            chage -E "$exp" "$usr"
-            echo -e "${GREEN}[✓] Usuario '$usr' creado hasta $exp.${NC}"
-            read -p "Presiona Enter para continuar..." aux; admin_cuentas ;;
-        2)
-            read -p "Usuario a eliminar: " usr
-            userdel -f "$usr" 2>/dev/null
-            echo -e "${GREEN}[✓] Usuario '$usr' eliminado.${NC}"
-            read -p "Presiona Enter para continuar..." aux; admin_cuentas ;;
-        3)
-            read -p "Usuario a renovar: " usr
-            read -p "Días adicionales: " dias
-            exp=$(date -d "+$dias days" +%Y-%m-%d)
-            chage -E "$exp" "$usr"
-            echo -e "${GREEN}[✓] Renovado hasta $exp.${NC}"
-            read -p "Presiona Enter para continuar..." aux; admin_cuentas ;;
-        4)
-            clear
-            printf "%-16s %-18s\n" "USUARIO" "EXPIRACIÓN"
-            echo "----------------------------------------------------"
-            for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
-                ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
-                printf "%-16s %-18s\n" "$u" "$ex"
-            done
-            read -p "Presiona Enter para continuar..." aux; admin_cuentas ;;
-        5)
-            for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
-                ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
-                exp_sec=$(date -d "$ex" +%s 2>/dev/null || echo "0")
-                if [ "$exp_sec" -gt 0 ] && [ "$(date +%s)" -gt "$exp_sec" ]; then
-                    userdel -f "$u" 2>/dev/null
-                fi
-            done
-            echo -e "${GREEN}[✓] Usuarios expirados eliminados.${NC}"
-            read -p "Presiona Enter para continuar..." aux; admin_cuentas ;;
-        0) menu_principal ;;
-        *) admin_cuentas ;;
-    esac
+        case $op_acc in
+            1)
+                read -p "Nombre del usuario: " usr
+                read -p "Contraseña: " pass
+                read -p "Días de duración: " dias
+                exp=$(date -d "+$dias days" +%Y-%m-%d)
+                useradd -M -s /bin/false "$usr" 2>/dev/null
+                echo "$usr:$pass" | chpasswd
+                chage -E "$exp" "$usr"
+                echo -e "${GREEN}[✓] Usuario '$usr' creado hasta $exp.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            2)
+                read -p "Usuario a eliminar: " usr
+                userdel -f "$usr" 2>/dev/null
+                echo -e "${GREEN}[✓] Usuario '$usr' eliminado.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            3)
+                read -p "Usuario a renovar: " usr
+                read -p "Días adicionales: " dias
+                exp=$(date -d "+$dias days" +%Y-%m-%d)
+                chage -E "$exp" "$usr"
+                echo -e "${GREEN}[✓] Renovado hasta $exp.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            4)
+                clear
+                printf "%-16s %-18s\n" "USUARIO" "EXPIRACIÓN"
+                echo "----------------------------------------------------"
+                for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
+                    ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
+                    printf "%-16s %-18s\n" "$u" "$ex"
+                done
+                read -p "Presiona Enter para continuar..." aux ;;
+            5)
+                for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
+                    ex=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
+                    exp_sec=$(date -d "$ex" +%s 2>/dev/null || echo "0")
+                    if [ "$exp_sec" -gt 0 ] && [ "$(date +%s)" -gt "$exp_sec" ]; then
+                        userdel -f "$u" 2>/dev/null
+                    fi
+                done
+                echo -e "${GREEN}[✓] Usuarios expirados eliminados.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            0) break ;;
+            *) sleep 1 ;;
+        esac
+    done
 }
 
 menu_protocolos() {
@@ -367,21 +371,10 @@ menu_protocolos() {
             *) echo -e "${RED}Opción inválida.${NC}"; sleep 1 ;;
         esac
     done
-    menu_principal
 }
 
 desinstalar_panel() {
     read -p "¿Deseas desinstalar el panel? [s/N]: " confirm
     if [[ "$confirm" =~ ^[sS]$ ]]; then
         rm -f /usr/local/bin/menu /usr/local/bin/pacheco /etc/motd /etc/vps-pacheco/.deps_ok
-        echo -e "${RED}[✓] Panel desinstalado correctamente.${NC}"
-        exit 0
-    fi
-    menu_principal
-}
-
-instalar_dependencias
-
-cp "$0" /usr/local/bin/menu 2>/dev/null || true
-chmod +x /usr/local/bin/menu
-ln -sf /usr/local/bin/menu /usr/local/bin/pache
+       
