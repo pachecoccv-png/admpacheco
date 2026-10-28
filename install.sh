@@ -1,7 +1,7 @@
 
 #!/bin/bash
 # ======================================================
-# PANEL ADMPACHECO - GESTOR VPS MODULAR PROFESIONAL
+# PANEL ADMPACHECO - GESTOR VPS
 # ======================================================
 
 RED='\033[0;31m'
@@ -11,41 +11,40 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-REPO="https://raw.githubusercontent.com/pachecoccv-png/admpacheco/main"
-
+# Verificar root
 if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${RED}[!] Debes ejecutar este script como root (sudo -i).${NC}"
+    echo -e "${RED}[!] Debes ejecutar como root.${NC}"
     exit 1
 fi
 
-instalar_dependencias() {
-    if [ -f /etc/vps-pacheco/.deps_ok ]; then
-        return 0
-    fi
+# Configuración
+REPO_URL="https://raw.githubusercontent.com/pachecoccv-png/admpacheco/main"
+SCRIPT_DIR="/opt/admpacheco"
+mkdir -p $SCRIPT_DIR
 
-    echo -e "${YELLOW}[+] Preparando entorno del sistema y dependencias esenciales...${NC}"
-
-    if ! loginctl show-user root 2>/dev/null | grep -q '^Linger=yes'; then
-        loginctl enable-linger root 2>/dev/null || true
-    fi
-
-    mkdir -p /run/user/0
-    chmod 700 /run/user/0
-    chown root:root /run/user/0
-    export XDG_RUNTIME_DIR=/run/user/0
-
-    apt-get update -y >/dev/null 2>&1
-    apt-get install -y gnupg wget curl software-properties-common lsb-release ufw iptables libstdc++6 libcurl4-openssl-dev python3 >/dev/null 2>&1
-
-    mkdir -p /etc/vps-pacheco
-    touch /etc/vps-pacheco/.deps_ok
-    echo -e "${GREEN}[✓] Sistema preparado correctamente.${NC}"
+# Descargar archivos del repositorio
+descargar_archivos() {
+    echo -e "${YELLOW}[+] Descargando archivos...${NC}"
+    archivos=("dropbear.sh" "stunnel.sh" "squid.sh" "udp_custom.sh" "badvpn.sh" "websocket.sh" "usuarios.sh")
+    
+    for archivo in "${archivos[@]}"; do
+        wget -q -O "$SCRIPT_DIR/$archivo" "$REPO_URL/$archivo" 2>/dev/null
+        chmod +x "$SCRIPT_DIR/$archivo"
+    done
+    
+    echo -e "${GREEN}[✓] Archivos listos${NC}"
     sleep 1
 }
 
-IP=$(wget -qO- ipv4.icanhazip.com || curl -s ipv4.icanhazip.com || echo "127.0.0.1")
-SO=$(cat /etc/issue.net 2>/dev/null || uname -s)
+# Abrir puerto
+abrir_puerto() {
+    local port=$1
+    local proto=${2:-tcp}
+    ufw allow $port/$proto >/dev/null 2>&1 || true
+    iptables -I INPUT -p $proto --dport $port -j ACCEPT >/dev/null 2>&1 || true
+}
 
+# Verificar estado
 check_status() {
     local port=$1
     local name=$2
@@ -56,95 +55,91 @@ check_status() {
     fi
 }
 
+# Contar usuarios
 contar_usuarios() {
-    activos=0
-    expirados=0
-    total=0
-    now_sec=$(date +%s)
-
-    for u in $(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd); do
-        total=$((total+1))
-        exp=$(chage -l "$u" 2>/dev/null | grep "Account expires" | cut -d: -f2)
-        exp_sec=$(date -d "$exp" +%s 2>/dev/null || echo "0")
-        if [ "$exp_sec" -gt 0 ] && [ "$now_sec" -gt "$exp_sec" ]; then
-            expirados=$((expirados+1))
-        else
-            activos=$((activos+1))
-        fi
-    done
+    activos=$(awk -F: '$3>=1000 && $3!=65534 {print $1}' /etc/passwd | wc -l)
+    echo "$activos"
 }
 
+# Menú Protocolos
 menu_protocolos() {
     while true; do
         clear
-        echo -e "${RED}------------------------------------------------------------${NC}"
-        echo -e "${YELLOW}                ADMINISTRADOR DE PROTOCOLOS                 ${NC}"
-        echo -e "${RED}============================================================${NC}"
-        echo -e " ${CYAN}[1]>${NC} Dropbear (90)     $(check_status 90 dropbear)"
-        echo -e " ${CYAN}[2]>${NC} Stunnel SSL (443) $(check_status 443 stunnel)"
-        echo -e " ${CYAN}[3]>${NC} Squid Proxy (3128)$(check_status 3128 squid)"
-        echo -e " ${CYAN}[4]>${NC} WS-EPro (80)      $(check_status 80 ws.py)"
-        echo -e " ${CYAN}[5]>${NC} UDP-Custom (36712)$(check_status 36712 udp-custom)"
-        echo -e " ${CYAN}[6]>${NC} BadVPN UDPGW(7300)$(check_status 7300 badvpn)"
-        echo -e "${RED}------------------------------------------------------------${NC}"
-        echo -e " ${RED}[0] VOLVER${NC}"
-        echo -e "${RED}------------------------------------------------------------${NC}"
+        echo -e "${YELLOW}------------------------------------------------${NC}"
+        echo -e "${YELLOW}      ADMINISTRADOR DE PROTOCOLOS               ${NC}"
+        echo -e "${YELLOW}------------------------------------------------${NC}"
+        echo -e " [1]> Dropbear (90)        $(check_status 90 dropbear)"
+        echo -e " [2]> Stunnel SSL (443)     $(check_status 443 stunnel)"
+        echo -e " [3]> Squid Proxy (3128)    $(check_status 3128 squid)"
+        echo -e " [4]> WS-EPro (80)          $(check_status 80 python3)"
+        echo -e " [5]> UDP-Custom (36712)    $(check_status 36712 udp-custom)"
+        echo -e " [6]> BadVPN UDPGW (7300)   $(check_status 7300 badvpn)"
+        echo -e "${YELLOW}------------------------------------------------${NC}"
+        echo -e " [0]> VOLVER"
+        echo -e "${YELLOW}------------------------------------------------${NC}"
         read -r -p " Ingresa una Opcion: " op_prot
 
         case $op_prot in
-            1) bash <(curl -sSL "$REPO/dropbear.sh"); read -r -p "Enter para continuar..." aux ;;
-            2) bash <(curl -sSL "$REPO/stunnel.sh"); read -r -p "Enter para continuar..." aux ;;
-            3) bash <(curl -sSL "$REPO/squid.sh"); read -r -p "Enter para continuar..." aux ;;
-            4) bash <(curl -sSL "$REPO/websocket.sh"); read -r -p "Enter para continuar..." aux ;;
-            5) bash <(curl -sSL "$REPO/udp_custom.sh"); read -r -p "Enter para continuar..." aux ;;
-            6) bash <(curl -sSL "$REPO/badvpn.sh"); read -r -p "Enter para continuar..." aux ;;
+            1) bash "$SCRIPT_DIR/dropbear.sh"; read -r -p "Enter para continuar..." aux ;;
+            2) bash "$SCRIPT_DIR/stunnel.sh"; read -r -p "Enter para continuar..." aux ;;
+            3) bash "$SCRIPT_DIR/squid.sh"; read -r -p "Enter para continuar..." aux ;;
+            4) bash "$SCRIPT_DIR/websocket.sh"; read -r -p "Enter para continuar..." aux ;;
+            5) bash "$SCRIPT_DIR/udp_custom.sh"; read -r -p "Enter para continuar..." aux ;;
+            6) bash "$SCRIPT_DIR/badvpn.sh"; read -r -p "Enter para continuar..." aux ;;
             0) break ;;
-            *) echo -e "${RED}Opción inválida.${NC}"; sleep 1 ;;
+            *) echo -e "${RED}Opción inválida${NC}"; sleep 1 ;;
         esac
     done
 }
 
+# Menú Principal
 menu_principal() {
     while true; do
         clear
-        contar_usuarios
-        echo -e "${RED}------------------------------------------------------------${NC}"
-        echo -e "${YELLOW}                     @AndresPacheco                         ${NC}"
-        echo -e "${RED}============================================================${NC}"
-        echo -e " ${CYAN}S.O:${NC}    $SO         ${CYAN}Fecha:${NC} $(date +'%d-%m-%Y')"
-        echo -e " ${CYAN}IP:${NC}     $IP                     ${CYAN}Hora:${NC}  $(date +'%H:%M:%S')"
-        echo -e "${RED}============================================================${NC}"
-        echo -e " ${GREEN}ACTIVA:${NC} $activos   ${RED}EXPIRADA:${NC} $expirados   ${CYAN}TOTAL:${NC} $total"
-        echo -e "${RED}------------------------------------------------------------${NC}"
-        echo -e " ${CYAN}[1]>${NC} ADMINISTRAR CUENTAS (SSH/DROPBEAR)"
-        echo -e " ${CYAN}[2]>${NC} CONFIGURACION DE PROTOCOLOS"
-        echo -e " ${CYAN}[3]>${NC} ${RED}[!] DESINSTALAR PANEL${NC}"
-        echo -e "${RED}------------------------------------------------------------${NC}"
-        echo -e " ${RED}[0] SALIR DEL VPS${NC}   ${BLUE}[8] SALIR DEL SCRIPT${NC}   ${CYAN}[9] REINICIAR VPS${NC}"
-        echo -e "${RED}------------------------------------------------------------${NC}"
+        total_users=$(contar_usuarios)
+        IP=$(wget -qO- ipv4.icanhazip.com || echo "127.0.0.1")
+        
+        echo -e "${RED}------------------------------------------------${NC}"
+        echo -e "${YELLOW}         PANEL ADMPACHECO                      ${NC}"
+        echo -e "${RED}================================================${NC}"
+        echo -e " ${CYAN}IP:${NC}     $IP"
+        echo -e " ${CYAN}FECHA:${NC}  $(date +'%d-%m-%Y')   ${CYAN}HORA:${NC} $(date +'%H:%M:%S')"
+        echo -e "${RED}================================================${NC}"
+        echo -e " ${CYAN}[1]> GESTIONAR USUARIOS ($total_users)${NC}"
+        echo -e " ${CYAN}[2]> CONFIGURAR PROTOCOLOS${NC}"
+        echo -e " ${CYAN}[3]> HERRAMIENTAS EXTRAS${NC}"
+        echo -e "${RED}------------------------------------------------${NC}"
+        echo -e " ${CYAN}[8]> SALIR DEL SCRIPT${NC}   ${CYAN}[9]> REINICIAR VPS${NC}"
+        echo -e "${RED}------------------------------------------------${NC}"
         read -r -p " Ingresa una Opcion: " opcion
 
         case $opcion in
-            1) bash <(curl -sSL "$REPO/usuarios.sh") ;;
+            1) bash "$SCRIPT_DIR/usuarios.sh"; read -r -p "Enter para continuar..." aux ;;
             2) menu_protocolos ;;
-            3)
-                systemctl stop udp-custom bdr-udpgw dropbear stunnel4 ws-epro squid 2>/dev/null
-                rm -rf /etc/vps-pacheco /root/udp /usr/local/bin/menu /usr/local/bin/pacheco /usr/local/bin/ws.py
-                echo -e "${GREEN}[✓] Panel desinstalado por completo.${NC}"
-                exit 0 ;;
+            3) clear
+               echo -e "${YELLOW}--- HERRAMIENTAS ---${NC}"
+               echo -e " [1] Actualizar sistema"
+               echo -e " [2] Ver uso de disco"
+               echo -e " [3] Ver uso de memoria"
+               echo -e " [0] Volver"
+               read -r -p "Opción: " h
+               case $h in
+                   1) apt update && apt upgrade -y ;;
+                   2) df -h ;;
+                   3) free -h ;;
+               esac
+               read -r -p "Enter para continuar..." aux ;;
             8) exit 0 ;;
             9) reboot ;;
-            0) logout ;;
-            *) echo -e "${RED}Opción no válida.${NC}"; sleep 1 ;;
         esac
     done
 }
 
-instalar_dependencias
+# ============= INICIO =============
+descargar_archivos
 
-cp "$0" /usr/local/bin/menu 2>/dev/null || true
+# Crear comando 'menu'
+cp "$0" /usr/local/bin/menu 2>/dev/null
 chmod +x /usr/local/bin/menu
-ln -sf /usr/local/bin/menu /usr/local/bin/pacheco 2>/dev/null || true
-sed -i 's/\r$//' /usr/local/bin/menu 2>/dev/null || true
 
 menu_principal
