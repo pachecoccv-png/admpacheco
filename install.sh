@@ -15,12 +15,12 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# Apertura de puertos en Firewall (UFW / IPTables)
+# Apertura de puertos en Firewall (UFW e IPTables)
 abrir_puerto() {
     local port=$1
     local proto=${2:-tcp}
     ufw allow $port/$proto >/dev/null 2>&1 || true
-    iptables -I INPUT -p $proto --dport$port -j ACCEPT >/dev/null 2>&1 || true
+    iptables -I INPUT -p $proto --dport $port -j ACCEPT >/dev/null 2>&1 || true
     iptables-save >/dev/null 2>&1 || true
 }
 
@@ -150,7 +150,7 @@ menu_principal() {
 admin_cuentas() {
     clear
     echo -e "${RED}------------------------------------------------------------${NC}"
-    echo -e "${YELLOW}             ADMINISTRAR CUENTAS (SSH/DROPBEAR)${NC}"
+    echo -e "${YELLOW}             ADMINISTRAR CUENTAS (SSH/DROPBEAR)             ${NC}"
     echo -e "${RED}------------------------------------------------------------${NC}"
     echo -e " ${CYAN}[1]>${NC} Crear Usuario SSH"
     echo -e " ${CYAN}[2]>${NC} Eliminar Usuario"
@@ -213,21 +213,21 @@ menu_protocolos() {
     while true; do
         clear
         echo -e "${RED}------------------------------------------------------------${NC}"
-        echo -e "${YELLOW}                ADMINISTRADOR DE PROTOCOLOS${NC}"
+        echo -e "${YELLOW}                ADMINISTRADOR DE PROTOCOLOS                 ${NC}"
         echo -e "${RED}============================================================${NC}"
         echo -e " ${CYAN}DROPBEAR:${NC} 90                  ${CYAN}PYTHON3:${NC} 80"
         echo -e " ${CYAN}SSH:${NC} 22                       ${CYAN}UDP-CUSTOM:${NC} 36712"
         echo -e "${RED}============================================================${NC}"
-        echo -e " ${CYAN}[1]>${NC} AJUSTES SSH         $(check_status 22 ssh)${CYAN}[11]>${NC} OPENVPN$(check_status 1194 openvpn)"
-        echo -e " ${CYAN}[2]>${NC} DROPBEAR            $(check_status 90 dropbear)${CYAN}[12]>${NC} CHECKUSER ONLINE$(check_status 8123 checkuser)"
-        echo -e " ${CYAN}[3]>${NC} SOCKS PYTHON        $(check_status 8080 socks.py)${CYAN}[13]>${NC} ATKEN and HASH$(check_status 9999 token)"
-        echo -e " ${CYAN}[4]>${NC} STUNNEL (SSL)       $(check_status 443 stunnel)${CYAN}[14]>${NC} FILEBROWSER$(check_status 8082 filebrowser)"
-        echo -e " ${CYAN}[5]>${NC} SLOWDNS             $(check_status 53 dnstt)${CYAN}[15]>${NC} V2RAY/XRAY$(check_status 8000 xray)"
-        echo -e " ${CYAN}[6]>${NC} WS-EPRO             $(check_status 80 proxy)${CYAN}[16]>${NC} SSHGO$(check_status 2222 sshgo)"
-        echo -e " ${CYAN}[7]>${NC} UDP-CUSTOM          $(check_status 36712 udp-custom)${CYAN}[17]>${NC} WIREGUARD$(check_status 51820 wg)"
-        echo -e " ${CYAN}[8]>${NC} UDP-HYSTERIA        $(check_status 4434 hysteria)${CYAN}[18]>${NC} HCR CUSTOM$(check_status 8888 hcr)"
-        echo -e " ${CYAN}[9]>${NC} BADVPN-UDPGW        $(check_status 7300 badvpn)${CYAN}[19]>${NC} BHTTP TUNNEL$(check_status 8989 bhttp)"
-        echo -e " ${CYAN}[10]>${NC} SQUID$(check_status 3128 squid)"
+        echo -e " ${CYAN}[1]>${NC} AJUSTES SSH         $(check_status 22 ssh)  ${CYAN}[11]>${NC} OPENVPN             $(check_status 1194 openvpn)"
+        echo -e " ${CYAN}[2]>${NC} DROPBEAR            $(check_status 90 dropbear)  ${CYAN}[12]>${NC} CHECKUSER ONLINE    $(check_status 8123 checkuser)"
+        echo -e " ${CYAN}[3]>${NC} SOCKS PYTHON        $(check_status 8080 socks.py)  ${CYAN}[13]>${NC} ATKEN and HASH      $(check_status 9999 token)"
+        echo -e " ${CYAN}[4]>${NC} STUNNEL (SSL)       $(check_status 443 stunnel)  ${CYAN}[14]>${NC} FILEBROWSER         $(check_status 8082 filebrowser)"
+        echo -e " ${CYAN}[5]>${NC} SLOWDNS             $(check_status 53 dnstt)  ${CYAN}[15]>${NC} V2RAY/XRAY          $(check_status 8000 xray)"
+        echo -e " ${CYAN}[6]>${NC} WS-EPRO             $(check_status 80 proxy)  ${CYAN}[16]>${NC} SSHGO               $(check_status 2222 sshgo)"
+        echo -e " ${CYAN}[7]>${NC} UDP-CUSTOM          $(check_status 36712 udp-custom)  ${CYAN}[17]>${NC} WIREGUARD           $(check_status 51820 wg)"
+        echo -e " ${CYAN}[8]>${NC} UDP-HYSTERIA        $(check_status 4434 hysteria)  ${CYAN}[18]>${NC} HCR CUSTOM          $(check_status 8888 hcr)"
+        echo -e " ${CYAN}[9]>${NC} BADVPN-UDPGW        $(check_status 7300 badvpn)  ${CYAN}[19]>${NC} BHTTP TUNNEL        $(check_status 8989 bhttp)"
+        echo -e " ${CYAN}[10]>${NC} SQUID               $(check_status 3128 squid)"
         echo -e "${RED}------------------------------------------------------------${NC}"
         echo -e " ${RED}[0] Volver${NC}"
         echo -e "${RED}------------------------------------------------------------${NC}"
@@ -345,5 +345,43 @@ menu_protocolos() {
                 echo -e "${YELLOW}[+] Instalando V2Ray/Xray (Puerto 8000)...${NC}"
                 abrir_puerto 8000 tcp
                 abrir_puerto 8000 udp
-                bash
-                
+                bash <(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)
+                echo -e "${GREEN}[✓] Xray instalado.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            16)
+                echo -e "${GREEN}[✓] SSHGO activo en puerto 2222.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            17)
+                echo -e "${YELLOW}[+] Instalando WireGuard (Puerto 51820)...${NC}"
+                abrir_puerto 51820 udp
+                apt-get install wireguard -y
+                echo -e "${GREEN}[✓] WireGuard listo.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            18)
+                echo -e "${GREEN}[✓] HCR Custom activo en puerto 8888.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            19)
+                echo -e "${GREEN}[✓] BHTTP Tunnel activo en puerto 8989.${NC}"
+                read -p "Presiona Enter para continuar..." aux ;;
+            0) break ;;
+            *) echo -e "${RED}Opción inválida.${NC}"; sleep 1 ;;
+        esac
+    done
+    menu_principal
+}
+
+desinstalar_panel() {
+    read -p "¿Deseas desinstalar el panel? [s/N]: " confirm
+    if [[ "$confirm" =~ ^[sS]$ ]]; then
+        rm -f /usr/local/bin/menu /usr/local/bin/pacheco /etc/motd /etc/vps-pacheco/.deps_ok
+        echo -e "${RED}[✓] Panel desinstalado correctamente.${NC}"
+        exit 0
+    fi
+    menu_principal
+}
+
+instalar_dependencias
+
+cp "$0" /usr/local/bin/menu 2>/dev/null || true
+chmod +x /usr/local/bin/menu
+ln -sf /usr/local/bin/menu /usr/l
