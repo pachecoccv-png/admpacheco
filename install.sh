@@ -15,7 +15,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# Apertura de puertos en Firewall (UFW e IPTables)
+# Apertura de puertos en Firewall (UFW / IPTables)
 abrir_puerto() {
     local port=$1
     local proto=${2:-tcp}
@@ -135,7 +135,7 @@ menu_principal() {
     case $opcion in
         1) admin_cuentas ;;
         2) menu_protocolos ;;
-        3) echo -e "${YELLOW}[+] Herramientas Extras en desarrollo...${NC}"; sleep 1; menu_principal ;;
+        3) echo -e "${YELLOW}[+] Herramientas Extras...${NC}"; sleep 1; menu_principal ;;
         4) echo -e "${YELLOW}[+] Configuración de Bots API...${NC}"; sleep 1; menu_principal ;;
         5) echo -e "${YELLOW}[+] Configuración del Script...${NC}"; sleep 1; menu_principal ;;
         6) echo -e "${YELLOW}[+] Idioma: Español.${NC}"; sleep 1; menu_principal ;;
@@ -384,4 +384,4 @@ instalar_dependencias
 
 cp "$0" /usr/local/bin/menu 2>/dev/null || true
 chmod +x /usr/local/bin/menu
-ln -sf /usr/local/bin/menu /usr/l
+ln -sf /usr/local/bin/menu /usr/local/bin/pache
