@@ -1,0 +1,13 @@
+[Unit]
+Description=ADMPACHECO UDP-Custom Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/admpacheco/wsepro/ws-epro
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
